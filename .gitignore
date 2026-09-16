@@ -1,0 +1,6 @@
+/venv/
+/.venv/
+__pycache__/
+*.py[cod]
+/.pytest_cache/
+/hack2026.db
