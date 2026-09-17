@@ -57,6 +57,22 @@ pip install -r requirements.txt
 streamlit run dashboard/Home.py     # dashboard: Real VS Code Activity, Post Dev Analysis, Optimizer
 ```
 
+If you want `app.predict` to use the LLM-based vague/incomplete-prompt review
+instead of the local heuristic, set these environment variables in the shell
+you use to run the command:
+
+```powershell
+$env:AZURE_OPENAI_API_KEY = "<your-key>"
+$env:AZURE_OPENAI_ENDPOINT = "https://<resource>.services.ai.azure.com/api/projects/<project>"
+$env:AZURE_OPENAI_DEPLOYMENT = "<deployment-name>"
+```
+
+Optional, if your Foundry resource needs a different API version:
+
+```powershell
+$env:AZURE_OPENAI_API_VERSION = "2024-06-01"
+```
+
 Predict a prompt's credit cost across models before you send it (CLI, no dashboard):
 
 ```powershell
