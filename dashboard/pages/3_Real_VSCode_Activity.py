@@ -59,11 +59,11 @@ if real_df.empty:
     st.info("No real session data ingested yet. Click the button above to scan.")
     st.stop()
 
-real_df["project"] = real_df["task_type"].str.removeprefix(TASK_TYPE_PREFIX)
+real_df["task_category"] = real_df["task_type"].str.removeprefix(TASK_TYPE_PREFIX)
 
-st.subheader("Cost per accepted request, by project")
+st.subheader("Cost per accepted request, by task type")
 st.dataframe(
-    real_df[["project", "total_spend", "accepted_outcomes", "abandoned_cases",
+    real_df[["task_category", "total_spend", "accepted_outcomes", "abandoned_cases",
              "cost_per_accepted_outcome", "yield_ratio", "retry_waste", "rework_waste",
              "git_verified_outcomes"]]
     .style.format({
@@ -79,9 +79,9 @@ st.caption("`git_verified_outcomes` = requests whose accepted/abandoned status w
            "from local git history (0 unless you scanned with the git-diff signal enabled).")
 
 fig = px.bar(
-    real_df.melt(id_vars="project", value_vars=["retry_waste", "rework_waste", "abandoned_waste"],
+    real_df.melt(id_vars="task_category", value_vars=["retry_waste", "rework_waste", "abandoned_waste"],
                  var_name="waste_type", value_name="amount"),
-    x="project", y="amount", color="waste_type", barmode="stack",
+    x="task_category", y="amount", color="waste_type", barmode="stack",
     title="Where the (proxy) cost went: retries vs. rework vs. abandoned requests",
 )
 st.plotly_chart(fig, use_container_width=True)

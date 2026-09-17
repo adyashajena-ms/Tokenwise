@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Predict prompt cost",
+      "type": "shell",
+      "command": "venv\\Scripts\\python.exe",
+      "args": [
+        "-m", "app.predict",
+        "${input:taskDescription}",
+        "--realistic",
+        "--auto"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "detail": "Estimate a task's Copilot credit cost across models (git context + real history)."
+    },
+    {
+      "label": "Predict prompt cost (choose files)",
+      "type": "shell",
+      "command": "venv\\Scripts\\python.exe",
+      "args": [
+        "-m", "app.predict",
+        "${input:taskDescription}",
+        "--realistic",
+        "${input:extraArgs}"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "detail": "Same, but you supply --file paths (and any other flags)."
+    }
+  ],
+  "inputs": [
+    {
+      "id": "taskDescription",
+      "type": "promptString",
+      "description": "What are you about to build? (the prompt to estimate)"
+    },
+    {
+      "id": "extraArgs",
+      "type": "promptString",
+      "description": "Extra args, e.g. --file app/models.py --file app/ledger.py",
+      "default": "--auto"
+    }
+  ]
+}

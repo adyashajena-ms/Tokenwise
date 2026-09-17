@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.estimator import estimate_presales_cost
 from app.ledger import trace_case, yield_ledger_by_task_type
-from app.prompt_optimizer import optimize_prompt, predict_prompt_cost
+from app.prompt_optimizer import forecast_prompt_usage, optimize_prompt, predict_prompt_cost
 
 app = FastAPI(title="TokenWise")
 
@@ -19,6 +19,13 @@ class EstimateRequest(BaseModel):
 
 class PromptRequest(BaseModel):
     prompt: str
+
+
+class PromptForecastRequest(PromptRequest):
+    expected_output_tokens: int = 500
+    monthly_requests: int = 1000
+    input_price_per_1k: float = 0.003
+    output_price_per_1k: float = 0.003
 
 
 @app.get("/ledger")
@@ -57,3 +64,17 @@ def post_predict_tokens(req: PromptRequest):
 @app.post("/optimize-prompt")
 def post_optimize_prompt(req: PromptRequest):
     return optimize_prompt(req.prompt)
+
+
+@app.post("/forecast-prompt-usage")
+def post_forecast_prompt_usage(req: PromptForecastRequest):
+    try:
+        return forecast_prompt_usage(
+            req.prompt,
+            expected_output_tokens=req.expected_output_tokens,
+            monthly_requests=req.monthly_requests,
+            input_price_per_1k=req.input_price_per_1k,
+            output_price_per_1k=req.output_price_per_1k,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

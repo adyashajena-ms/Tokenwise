@@ -29,6 +29,18 @@ EDIT_TOOL_NAMES = {
 CHARS_PER_TOKEN = 4
 PRICE_PER_1K_TOKENS = 0.003  # blended proxy rate -- NOT a real billing figure
 TASK_TYPE_PREFIX = "vscode:"
+WORKSPACE_TASK_TYPES = {
+    "dsatbugfixtool": "support response",
+    "growth_ts_ap": "windows app dev",
+    "growth_ts_app": "windows app dev",
+    "techhelpxap": "xap_workflows",
+}
+
+
+def task_type_for_workspace(folder_name: str) -> str:
+    """Return the business task category for a VS Code workspace."""
+    category = WORKSPACE_TASK_TYPES.get(folder_name.casefold(), folder_name)
+    return f"{TASK_TYPE_PREFIX}{category}"
 
 
 def _vscode_storage_root() -> Path:
@@ -172,7 +184,7 @@ def ingest_vscode_sessions(use_git_signal: bool = False) -> dict:
 
         engagement_ids: dict[str, int] = {}
         for folder_name, jsonl_path in _find_transcripts(storage_root):
-            task_type = f"{TASK_TYPE_PREFIX}{folder_name}"
+            task_type = task_type_for_workspace(folder_name)
             if task_type not in engagement_ids:
                 engagement = Engagement(customer="local-developer", task_type=task_type, complexity_tier="observed")
                 session.add(engagement)

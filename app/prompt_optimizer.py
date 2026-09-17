@@ -63,10 +63,119 @@ def predict_prompt_cost(text: str, price_per_1k: float = PRICE_PER_1K_TOKENS) ->
     }
 
 
+def forecast_prompt_usage(
+    text: str,
+    expected_output_tokens: int,
+    monthly_requests: int,
+    input_price_per_1k: float = PRICE_PER_1K_TOKENS,
+    output_price_per_1k: float = PRICE_PER_1K_TOKENS,
+) -> dict:
+    """Forecast monthly input/output cost before and after prompt optimization."""
+    if expected_output_tokens < 0:
+        raise ValueError("expected_output_tokens must be non-negative")
+    if monthly_requests < 1:
+        raise ValueError("monthly_requests must be at least 1")
+    if input_price_per_1k < 0 or output_price_per_1k < 0:
+        raise ValueError("token prices must be non-negative")
+
+    optimization = optimize_prompt(text, price_per_1k=input_price_per_1k)
+    output_cost = estimate_cost(expected_output_tokens, output_price_per_1k)
+    before_cost = optimization["before"]["cost"] + output_cost
+    after_cost = optimization["after"]["cost"] + output_cost
+
+    return {
+        "monthly_requests": monthly_requests,
+        "expected_output_tokens": expected_output_tokens,
+        "before": {
+            "input_tokens_per_request": optimization["before"]["tokens"],
+            "cost_per_request": before_cost,
+            "monthly_cost": before_cost * monthly_requests,
+        },
+        "after": {
+            "input_tokens_per_request": optimization["after"]["tokens"],
+            "cost_per_request": after_cost,
+            "monthly_cost": after_cost * monthly_requests,
+        },
+        "monthly_savings": (before_cost - after_cost) * monthly_requests,
+        "assumptions": {
+            "token_method": _token_method(),
+            "input_price_per_1k_tokens": input_price_per_1k,
+            "output_price_per_1k_tokens": output_price_per_1k,
+            "output_note": "expected output tokens are a user-provided planning assumption",
+        },
+    }
+
+
 # Meaning-preserving reductions. Each rule is (label, compiled_pattern,
 # replacement). These only remove filler that carries no instruction or
 # collapse redundant whitespace -- they never rephrase the actual request.
 _FILLER_RULES: list[tuple[str, re.Pattern, str]] = [
+    ("shorten wordy phrases",
+     re.compile(
+         r"(?i)\b(due to the fact that|in the event that|at this point in time|"
+         r"with regard to|in relation to|has the ability to|is able to|make use of|"
+         r"perform an analysis of|provide an explanation of|take into consideration|"
+         r"on a monthly basis|prior to|subsequent to)\b"
+     ),
+     lambda match: {
+         "due to the fact that": "because",
+         "in the event that": "if",
+         "at this point in time": "now",
+         "with regard to": "about",
+         "in relation to": "about",
+         "has the ability to": "can",
+         "is able to": "can",
+         "make use of": "use",
+         "perform an analysis of": "analyze",
+         "provide an explanation of": "explain",
+         "take into consideration": "consider",
+         "on a monthly basis": "monthly",
+         "prior to": "before",
+         "subsequent to": "after",
+     }[match.group(0).lower()]),
+    ("remove redundant word pairs",
+     re.compile(
+         r"(?i)\b(each and every|any and all|first and foremost|end result|"
+         r"past history|future plans|basic fundamentals|advance planning|"
+         r"completely eliminate|exact same|new innovation)\b"
+     ),
+     lambda match: {
+         "each and every": "each",
+         "any and all": "all",
+         "first and foremost": "first",
+         "end result": "result",
+         "past history": "history",
+         "future plans": "plans",
+         "basic fundamentals": "fundamentals",
+         "advance planning": "planning",
+         "completely eliminate": "eliminate",
+         "exact same": "same",
+         "new innovation": "innovation",
+     }[match.group(0).lower()]),
+    ("simplify verbose connectors",
+     re.compile(
+         r"(?i)\b(as a result of|by means of|for the purpose of|"
+         r"in close proximity to|in the near future|in cases where|"
+         r"in a situation where|at all times|on a daily basis|"
+         r"on a weekly basis)\b"
+     ),
+     lambda match: {
+         "as a result of": "because of",
+         "by means of": "using",
+         "for the purpose of": "to",
+         "in close proximity to": "near",
+         "in the near future": "soon",
+         "in cases where": "when",
+         "in a situation where": "when",
+         "at all times": "always",
+         "on a daily basis": "daily",
+         "on a weekly basis": "weekly",
+     }[match.group(0).lower()]),
+    ("drop meta commentary",
+     re.compile(
+         r"(?i)\b(it is important to note that|it should be noted that|"
+         r"needless to say,?|as mentioned previously,?)\s*"
+     ), ""),
     ("drop leading politeness",
      re.compile(r"(?i)\b(please|kindly)\b[ ,]*"), ""),
     ("drop hedges/fillers",
@@ -85,6 +194,11 @@ _FILLER_RULES: list[tuple[str, re.Pattern, str]] = [
     ("collapse blank-line runs",
      re.compile(r"\n{3,}"), "\n\n"),
 ]
+
+
+def available_optimization_rules() -> list[str]:
+    """Names of all deterministic rules the optimizer can apply."""
+    return [label for label, _, _ in _FILLER_RULES]
 
 
 def optimize_prompt(text: str, price_per_1k: float = PRICE_PER_1K_TOKENS) -> dict:

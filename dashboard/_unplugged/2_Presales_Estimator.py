@@ -31,7 +31,11 @@ st.caption("Estimates are a proposed method (empirical bootstrap over historical
 
 col_a, col_b, col_c = st.columns(3)
 with col_a:
-    task_type = st.selectbox("Task type", task_types)
+    task_type = st.selectbox(
+        "Task type",
+        task_types,
+        format_func=lambda value: value.removeprefix("vscode:"),
+    )
 with col_b:
     volume = st.number_input("Expected volume (# cases)", min_value=1, value=100, step=10)
 with col_c:
