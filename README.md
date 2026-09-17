@@ -3,56 +3,75 @@
 Prototype for the InSpireD "AI cost/yield" hackathon challenge.
 
 AI spend is easy to measure but hard to justify. Tokens get burned on retries, rework, and
-abandoned attempts that never ship. **TokenWise** connects **spend → accepted outcome**, so
-every dollar is traceable to the artifact it produced (or flagged as waste when nothing
-shipped) — and it cuts waste at the source by predicting and trimming a prompt's token cost
-*before* the prompt is ever sent.
+oversized context. **TokenWise** turns local VS Code Copilot activity into **real token and
+credit accounting** — showing which project and feature spent what, which prompts were
+efficient, and what a task will cost *before* you send it, so you can pick the cheapest model
+that fits.
 
 ## Three core pillars
 
-1. **Yield Ledger** — cost per accepted outcome, traced from spend to artifact, with a waste
-   breakdown (retries / rework / abandonment). *(`app/ledger.py`)*
-2. **Presales Estimator** — a defensible P10/P50/P90 cost interval for a new engagement, with
-   its assumptions stated alongside it. *(`app/estimator.py`)*
+1. **Post-Dev Token Analysis** — reads real prompt/output token counts from local VS Code
+   `chatSessions` and reports **credits per project folder and per feature**, a good/bad
+   prompt breakdown to learn from, and how much a cheaper model would have saved.
+   *(`app/chat_sessions.py`, `app/prompt_analysis.py`, dashboard "Post Dev Analysis" page)*
+2. **Pre-Dev Cost Predictor (CLI)** — predicts a prompt's **credit cost across every model**
+   before you send it, counting real input tokens (prompt + attached files) and sizing output
+   from your history. *(`app/predict.py`, `app/cost_predictor.py`, `app/model_pricing.py`)*
 3. **Prompt Token Optimizer** — predicts a prompt's token count and cost before you send it,
    then trims it with meaning-preserving rewrites so fewer tokens are spent without
-   compromising output. This is the *prevent-waste-before-it-happens* half of the
-   spend→outcome story. *(`app/prompt_optimizer.py`)*
+   compromising output. *(`app/prompt_optimizer.py`, dashboard "Prompt Token Optimizer" page)*
+
+> Two earlier pillars — **Yield Ledger** (`app/ledger.py`) and **Presales Estimator**
+> (`app/estimator.py`) — are currently **unplugged from the UI** (kept in
+> `dashboard/_unplugged/`) and can be re-plugged by moving their page back into
+> `dashboard/pages/`.
 
 ## Challenge asks -> what's built
 
 | Ask | Status | Where |
 |---|---|---|
-| Yield ledger: cost per accepted outcome, traceable from spend to artifact | **Built (core)** | `app/ledger.py`, dashboard "Yield Ledger" page |
-| Estimation model: defensible intervals at presales, assumptions stated | **Built (core)** | `app/estimator.py`, dashboard "Presales Estimator" page |
-| Token optimization: predict a prompt's token/cost before sending, and trim it without changing the ask | **Built (core)** | `app/prompt_optimizer.py`, dashboard "Prompt Token Optimizer" page |
-| Risk-classification rubric | Not built (stretch, out of scope for this pass) | — |
-| Chargeback mapping into a FinOps model | Not built (stretch, out of scope for this pass) | — |
-| Evidence standards (described/proposed vs validated) | **Applied throughout** | every estimate returns an `assumptions` block; nothing is claimed as validated |
+| Real cost per project/feature, traceable from spend to artifact | **Built (core)** | `app/prompt_analysis.py`, "Post Dev Analysis" page |
+| Predict a task's cost before sending, choose a cheaper model | **Built (core)** | `app/predict.py`, `app/cost_predictor.py` |
+| Token optimization: predict a prompt's token/cost before sending, and trim it without changing the ask | **Built (core)** | `app/prompt_optimizer.py`, "Prompt Token Optimizer" page |
+| Yield ledger / presales estimator (cost-per-accepted-outcome, P10/P50/P90) | **Built, unplugged** | `dashboard/_unplugged/` |
+| Evidence standards (described/proposed vs validated) | **Applied throughout** | estimates state their assumptions; rates are the real Copilot credit rates where known, inferred otherwise |
 
 ## Data
 
-Two sources feed the same `Engagement`/`Case`/`Attempt` tables:
+TokenWise reads **real** local VS Code Copilot data — nothing leaves your machine:
 
-- **Synthetic** (`app/data_gen.py`) — three task-type archetypes with different cost,
-  retry, and abandonment profiles so the ledger/estimator have realistic variance to show.
-- **Real** (`app/ingest_vscode_sessions.py`) — scans local VS Code Copilot chat transcripts
-  from every workspace on this machine (`%APPDATA%\Code\User\workspaceStorage\*\GitHub.copilot-chat\transcripts\*.jsonl`,
-  never sent anywhere) and turns them into the same schema: one `Case` per user request,
-  one `Attempt` per assistant turn, "rework" = the same file edited more than once within
-  a request. Cost is a **proxy** (~chars/4 tokens x an assumed $/1K-token rate) since local
-  transcripts don't record actual billed token counts. Run via the "Real VS Code Activity"
-  dashboard page or `python -m app.ingest_vscode_sessions` (safe to re-run — replaces prior
-  real-data rows, keeps synthetic rows).
+- **chatSessions** (`app/chat_sessions.py`) — reconstructs the event-sourced
+  `%APPDATA%\Code\User\workspaceStorage\*\chatSessions\*.jsonl` logs into per-request
+  records with **real** prompt/output token counts, the model used, cache/reasoning tokens,
+  and the files touched. This powers the Post-Dev analysis and the pre-dev predictor's
+  history-based estimates. Cost is reported in **Copilot credits per 1M tokens** (the same
+  units as the model picker); per-model rates live in `app/model_pricing.py`.
+- **Legacy transcript proxy** (`app/ingest_vscode_sessions.py`) — used by the unplugged
+  Yield Ledger; approximates cost from transcript text (~chars/4 tokens). Kept for
+  compatibility with the ledger/estimator.
 
 ## Run it
 
 ```powershell
 pip install -r requirements.txt
-python -m app.data_gen          # generates hack2026.db
-streamlit run dashboard/Home.py # dashboard (also lets you regenerate data)
-uvicorn app.api:app --reload    # optional: REST API on http://127.0.0.1:8000
+streamlit run dashboard/Home.py     # dashboard: Real VS Code Activity, Post Dev Analysis, Optimizer
 ```
+
+Predict a prompt's credit cost across models before you send it (CLI, no dashboard):
+
+```powershell
+# just the prompt
+venv\Scripts\python.exe -m app.predict "add a per-customer breakdown"
+
+# with the files you'll touch + realistic context from your history (most accurate)
+venv\Scripts\python.exe -m app.predict "add a per-customer breakdown" --file app/models.py --realistic
+
+# zero-config: pull context from git-changed files, size output from history
+venv\Scripts\python.exe -m app.predict "add a per-customer breakdown" --auto --realistic
+```
+
+Or run it from VS Code: **Ctrl+Shift+P -> Run Task -> "Predict prompt cost"**.
+Copilot also runs it automatically before non-trivial edits (see `.github/copilot-instructions.md`).
 
 ## Tests
 
@@ -62,17 +81,21 @@ pytest
 
 ## Model notes
 
-- **Yield ledger**: for each accepted case, cost is the sum of every attempt (including
-  rejected retries) plus human rework cost — full spend attributed to the artifact that
-  was actually accepted. Abandoned cases contribute their full spend as waste, attributed
-  to no outcome.
-- **Presales estimator**: empirical bootstrap Monte Carlo over historical accepted-outcome
-  costs for the selected task type, optionally scaled by a stated (uncalibrated)
-  complexity-tier multiplier. This is a *proposed* method — every result includes the
-  sample size, simulation count, and confidence caveat it was built from.
-- **Prompt token optimizer**: predicts a prompt's token count and cost *before* it is sent
-  (exact BPE count via `tiktoken` when installed, otherwise the same chars/4 proxy the
-  ledger uses), then trims it using only meaning-preserving rewrites — collapsing redundant
-  whitespace and dropping non-instructional filler/politeness. It reports each rule applied
-  and the tokens it saved, and never rephrases the substantive request, so model output is
-  not compromised. Heuristic — review the optimized prompt before relying on it.
+- **Post-dev token analysis**: reconstructs `chatSessions` event logs into per-request rows
+  with real prompt/output tokens, model, and files touched; aggregates **credits per project
+  and per feature** (one chat session = one feature, labeled by its title with the actual
+  files touched shown as grounded evidence). Prompt quality is a heuristic (wasted / bloated /
+  efficient), not a validated classifier.
+- **Pre-dev cost predictor**: counts real input tokens (exact BPE via `tiktoken`) for the
+  prompt plus any attached/`--auto` git-context files, sizes output from your history
+  (`--use-history`/`--realistic`), and prices every model in `app/model_pricing.py`. `--realistic`
+  adds your real median per-request context (referenced files + history + tools), which is far
+  larger than edited files alone. Flags models whose context window can't hold the input.
+- **Prompt token optimizer**: predicts a prompt's token count and cost *before* it is sent,
+  then trims it using only meaning-preserving rewrites — collapsing redundant whitespace and
+  dropping non-instructional filler. It reports each rule applied and the tokens it saved, and
+  never rephrases the substantive request. Heuristic — review the optimized prompt before
+  relying on it.
+- **Pricing**: credits per 1M tokens, matching the VS Code model picker. Known rates are real
+  (extracted from local model metadata); a few are inferred from a sibling model and marked as
+  such. Regenerate with `python -m tools.refresh_model_catalog`.
