@@ -8,8 +8,7 @@
       "args": [
         "-m", "app.predict",
         "${input:taskDescription}",
-        "--realistic",
-        "--auto"
+        "--realistic"
       ],
       "problemMatcher": [],
       "presentation": {
@@ -17,18 +16,12 @@
         "panel": "dedicated",
         "clear": true
       },
-      "detail": "Estimate a task's Copilot credit cost across models (git context + real history)."
+      "detail": "Estimate a task's Copilot credit cost across models (repo-scoped real history)."
     },
     {
       "label": "Predict prompt cost (choose files)",
       "type": "shell",
-      "command": "venv\\Scripts\\python.exe",
-      "args": [
-        "-m", "app.predict",
-        "${input:taskDescription}",
-        "--realistic",
-        "${input:extraArgs}"
-      ],
+      "command": "venv\\Scripts\\python.exe -m app.predict \"${input:taskDescription}\" --realistic ${input:extraArgs}",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -48,7 +41,7 @@
       "id": "extraArgs",
       "type": "promptString",
       "description": "Extra args, e.g. --file app/models.py --file app/ledger.py",
-      "default": "--auto"
+      "default": "--file"
     }
   ]
 }

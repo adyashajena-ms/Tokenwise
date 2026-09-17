@@ -9,6 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import pandas as pd
 import plotly.express as px
 import streamlit as st
 
@@ -53,6 +54,43 @@ m1.metric("Requests", f"{len(df):,}")
 m2.metric("Prompt tokens", f"{total_prompt:,}")
 m3.metric("Output tokens", f"{total_output:,}")
 m4.metric("Est. credits", f"{total_cost:,.0f}")
+
+st.subheader("Recent prompts")
+st.caption("Most recent prompts first. Filter by text or project to find a "
+           "specific one and see its real tokens and credit cost.")
+recent = df[df["prompt_chars"] > 0].copy()
+recent["when"] = pd.to_datetime(recent["timestamp"], unit="ms", errors="coerce")
+recent = recent.sort_values("timestamp", ascending=False, na_position="last")
+
+f1, f2, f3 = st.columns([2, 1, 1])
+with f1:
+    query = st.text_input("Filter by prompt text", "", placeholder="e.g. cost prediction")
+with f2:
+    ws_options = ["All projects"] + sorted(recent["workspace"].dropna().unique().tolist())
+    ws_choice = st.selectbox("Project", ws_options)
+with f3:
+    limit = int(st.number_input("Rows", min_value=5, max_value=200, value=25, step=5))
+
+if query:
+    recent = recent[recent["prompt_text"].str.contains(query, case=False, na=False)]
+if ws_choice != "All projects":
+    recent = recent[recent["workspace"] == ws_choice]
+
+if recent.empty:
+    st.info("No prompts match that filter.")
+else:
+    st.dataframe(
+        recent[["when", "workspace", "model_id", "request_id",
+                "prompt_tokens", "output_tokens", "cost", "prompt_text"]]
+        .head(limit)
+        .style.format({
+            "prompt_tokens": "{:,}",
+            "output_tokens": "{:,}",
+            "cost": "{:,.4f} cr",
+        }),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 st.subheader("Tokens & credits by project folder")
 by_project = tokens_by_project(df)
@@ -119,10 +157,14 @@ else:
             use_container_width=True,
         )
     with c2:
+        top_good = scored[scored["quality"] == "good"].head(10)
+        top_bad = scored[scored["quality"] == "needs work"].head(10)
+        top20 = pd.concat([top_good, top_bad])
+        st.caption(f"Top {len(top_good)} good and {len(top_bad)} needs-work prompts "
+                   "(by credits).")
         st.dataframe(
-            scored[["workspace", "quality", "why", "prompt_tokens",
-                    "output_tokens", "cost", "prompt_text"]]
-            .head(50)
+            top20[["workspace", "quality", "why", "prompt_tokens",
+                   "output_tokens", "cost", "prompt_text"]]
             .style.format({
                 "prompt_tokens": "{:,}",
                 "output_tokens": "{:,}",
@@ -130,6 +172,7 @@ else:
             }),
             use_container_width=True,
             hide_index=True,
+            height=320,
         )
 
 st.subheader("Would a cheaper model have helped?")

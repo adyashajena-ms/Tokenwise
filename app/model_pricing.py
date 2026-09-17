@@ -23,9 +23,6 @@ MODEL_CATALOG: dict[str, dict] = {
     "copilot/claude-sonnet-5": {"context_window": 935793, "max_output_tokens": 64000,
                                 "family": "claude-sonnet-5", "vendor": "copilot",
                                 "vision": True, "tool_calling": True, "agent_mode": True},
-    "copilot/auto": {"context_window": 135790, "max_output_tokens": 64000,
-                     "family": "claude-haiku-4.5", "vendor": "copilot",
-                     "vision": True, "tool_calling": True, "agent_mode": True},
 }
 
 # CREDITS per 1M tokens (input, output, cache_read, cache_write). Some models
@@ -35,10 +32,11 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
                             "long_context": {"input": 800, "output": 3000, "cache_read": 80, "cache_write": 1000}},
     "copilot/gpt-5.6-terra": {"input": 200, "output": 1200, "cache_read": 20, "cache_write": 250,
                               "long_context": {"input": 400, "output": 1800, "cache_read": 40, "cache_write": 500}},
+    "copilot/gpt-5.4": {"input": 250, "output": 1500, "cache_read": 25, "cache_write": 0,
+                        "long_context": {"input": 500, "output": 2250, "cache_read": 50, "cache_write": 0}},
     "copilot/claude-opus-4.8": {"input": 500, "output": 2500, "cache_read": 50, "cache_write": 625},
     "copilot/claude-sonnet-5": {"input": 200, "output": 1000, "cache_read": 20, "cache_write": 250},
-    # Auto advertises a 10% discount; low tier estimate
-    "copilot/auto": {"input": 180, "output": 900, "cache_read": 18, "cache_write": 225},
+    "copilot/claude-haiku-4.5": {"input": 100, "output": 500, "cache_read": 10, "cache_write": 125},
 }
 
 # Credits per 1M tokens for an unknown model (mid-tier default).
@@ -101,4 +99,23 @@ def cheapest_model(prompt_tokens: int, output_tokens: int) -> tuple[str, float]:
         MODEL_PRICING,
         key=lambda m: request_cost(prompt_tokens, output_tokens, m),
     )
+    return best_model, request_cost(prompt_tokens, output_tokens, best_model)
+
+
+# Rough capability tiers for intent-based routing (economy < standard < premium).
+# Within a tier, the cheapest known model is chosen. Used to balance quality vs.
+# cost instead of always defaulting to the single cheapest model.
+MODEL_TIERS: dict[str, list[str]] = {
+    "economy": ["copilot/claude-haiku-4.5", "copilot/claude-sonnet-5", "copilot/gpt-5.6-terra"],
+    "standard": ["copilot/gpt-5.4", "copilot/gpt-5.6-sol"],
+    "premium": ["copilot/claude-opus-4.8"],
+}
+
+
+def recommend_model(tier: str, prompt_tokens: int, output_tokens: int) -> tuple[str, float]:
+    """Cheapest known model within the given tier; falls back to overall cheapest."""
+    known = [m for m in MODEL_TIERS.get(tier, []) if m in MODEL_PRICING]
+    if not known:
+        return cheapest_model(prompt_tokens, output_tokens)
+    best_model = min(known, key=lambda m: request_cost(prompt_tokens, output_tokens, m))
     return best_model, request_cost(prompt_tokens, output_tokens, best_model)

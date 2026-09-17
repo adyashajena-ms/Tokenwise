@@ -16,6 +16,7 @@ import pandas as pd
 
 from app.chat_sessions import ChatRequestRecord, load_chat_requests
 from app.model_pricing import cheapest_model, request_cost, request_cost_detailed
+from app.prompt_optimizer import estimate_tokens
 
 
 def requests_dataframe(records: list[ChatRequestRecord] | None = None) -> pd.DataFrame:
@@ -37,6 +38,9 @@ def requests_dataframe(records: list[ChatRequestRecord] | None = None) -> pd.Dat
             "prompt_tokens": r.prompt_tokens,
             "output_tokens": r.output_tokens,
             "total_tokens": r.prompt_tokens + r.output_tokens,
+            # tokens of just what the user typed, excluding attached context --
+            # a better predictor of output size than the context-inflated prompt_tokens.
+            "prompt_text_tokens": estimate_tokens(r.prompt_text) if r.prompt_text else 0,
             "cached_tokens": r.cached_tokens,
             "reasoning_tokens": r.reasoning_tokens,
             "context_length": r.context_length,

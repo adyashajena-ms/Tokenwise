@@ -15,3 +15,14 @@ def temp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(models_module, "SessionLocal", sessionmaker(bind=engine))
     Base.metadata.create_all(engine)
     yield
+
+
+@pytest.fixture(autouse=True)
+def _no_real_llm_calls(monkeypatch):
+    """Clear Azure creds by default so tests never hit the real network.
+
+    Tests that exercise the LLM path set these explicitly via monkeypatch.
+    """
+    for var in ("AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"):
+        monkeypatch.delenv(var, raising=False)
+    yield
