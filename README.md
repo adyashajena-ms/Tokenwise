@@ -63,8 +63,8 @@ you use to run the command:
 
 ```powershell
 $env:AZURE_OPENAI_API_KEY = "<your-key>"
-$env:AZURE_OPENAI_ENDPOINT = "https://<resource>.services.ai.azure.com/api/projects/<project>"
-$env:AZURE_OPENAI_DEPLOYMENT = "<deployment-name>"
+$env:AZURE_OPENAI_ENDPOINT = "https://tokenwise.services.ai.azure.com/api/projects/tokenwise"
+$env:AZURE_OPENAI_DEPLOYMENT = "gpt-4.1-mini"
 ```
 
 Optional, if your Foundry resource needs a different API version:
